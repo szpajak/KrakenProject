@@ -31,6 +31,10 @@ class CustomHandler(BaseCallbackHandler):
             formatted_prompts
         ).total_tokens
 
+    def on_chain_start(self, serialized, inputs, **kwargs):
+        st.session_state.retrieved = inputs["context"]
+        # st.session_state.docs = docs
+
 
 handler = CustomHandler()
 
@@ -57,6 +61,7 @@ def get_conversation_chain(vector_store):
     memory = ConversationBufferMemory(
         memory_key="chat_history",
         return_messages=True,
+        callbacks=[handler],
     )
     system_template = """
         Use the following pieces of context and chat history to answer the question at the end.
@@ -75,6 +80,7 @@ def get_conversation_chain(vector_store):
     prompt = PromptTemplate(
         template=system_template,
         input_variables=["context", "question", "chat_history"],
+        callbacks=[handler],
     )
 
     conversation_chain = ConversationalRetrievalChain.from_llm(
@@ -115,6 +121,8 @@ def main():
         st.session_state.chat_history = None
     if "tokens_used" not in st.session_state:  # Initialize tokens_used in session state
         st.session_state.tokens_used = 0
+    if "retrieved" not in st.session_state:  # Initialize tokens_used in session state
+        st.session_state.retrieved = []
     if "vector_store" not in st.session_state:
         try:
             df = pd.read_csv("data/chunks.csv")
@@ -151,7 +159,7 @@ def main():
         st.subheader("Additional Informations")
         st.markdown(f"Token Count: {st.session_state.tokens_used}\n")
         st.markdown(f"Prompt Sent to LLM: {prompt}\n")
-        st.markdown("Retrieved Chunks\n")
+        st.markdown(f"Retrieval:\n {st.session_state.retrieved}")
 
 
 if __name__ == "__main__":
