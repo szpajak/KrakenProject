@@ -126,9 +126,7 @@ def main():
     if "vector_store" not in st.session_state:
         try:
             df = pd.read_csv("data/chunks.csv")
-            # print(df)
-            text_chunks = df["content"].tolist()
-            # print(text_chunks)
+            text_chunks = df["chunk"].tolist()
             st.session_state.vector_store = get_vector_store(text_chunks)
             st.success(
                 "Your PDFs have been processed successfully. You can ask questions now."
