@@ -5,6 +5,7 @@ load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL_NAME = "gemini-1.5-flash-8b"
 EMBEDDING_MODEL = "models/embedding-001"
+MIN_EVALUATION_SCORE = 0.5
 
 import streamlit as st
 import pandas as pd
@@ -16,12 +17,14 @@ from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.callbacks.base import BaseCallbackHandler
-
-
 from vertexai.preview import tokenization
+
+from evaluation import ResponseEvaluator
 
 # uses https://github.com/google/sentencepiece under the hood, works offline
 tokenizer = tokenization.get_tokenizer_for_model("gemini-1.5-flash-002")
+
+
 
 
 class CustomHandler(BaseCallbackHandler):
@@ -37,10 +40,10 @@ class CustomHandler(BaseCallbackHandler):
 
 
 handler = CustomHandler()
+evaluator = ResponseEvaluator()
 
 
 def get_vector_store(text_chunks):
-    # print(text_chunks)
     embeddings = GoogleGenerativeAIEmbeddings(
         model=EMBEDDING_MODEL, google_api_key=GEMINI_API_KEY
     )
@@ -98,6 +101,9 @@ def get_conversation_chain(vector_store):
 def handle_user_input(question):
     response = st.session_state.conversation({"question": question})
     st.session_state.chat_history = response["chat_history"]
+    ai_msgs = [msg for msg in st.session_state.chat_history if msg.type == "ai"]
+    last_ai_response = ai_msgs[-1].content if ai_msgs else ""
+    return last_ai_response
 
 
 def display_chat_history():
@@ -145,13 +151,28 @@ def main():
     if prompt := st.chat_input("Ask anything to your PDF:"):
         with st.chat_message("user"):
             st.markdown(prompt)
-        handle_user_input(prompt)
-        if st.session_state.chat_history:
-            last_ai_response = [
-                msg for msg in st.session_state.chat_history if msg.type == "ai"
-            ][-1].content
+        last_ai_response = handle_user_input(prompt)
+        if last_ai_response:
             with st.chat_message("assistant"):
                 st.markdown(last_ai_response)
+
+        eval_res = evaluator.evaluate(prompt, last_ai_response)
+
+        warning_msgs = []
+        if not eval_res['basic_criteria']:
+            warning_msgs.append(eval_res['message'])
+        else:
+            score = eval_res['final_score']
+            keyword_score = eval_res['keyword_score']
+            length_score = eval_res['length_score']
+            uncertainty_score = eval_res['uncertainty_score']
+
+            if score < MIN_EVALUATION_SCORE:
+                warning_msgs.append(
+                    f"Evaluation score is low: {score}\n keywords number score: {keyword_score}\n, response length score: {length_score}\n, uncertainty score: {uncertainty_score}"
+                )
+        for wm in warning_msgs:
+            st.warning(wm)
 
     with st.sidebar:
         st.subheader("Additional Informations")
