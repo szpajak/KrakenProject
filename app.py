@@ -75,7 +75,10 @@ def get_conversation_chain(vector_store):
     system_template = """
         Use the following pieces of context and chat history to answer in English the question at the end.
         In the answer tell exact paragraph number from the context where the answer is found e.g. "According to §3(2) of the AGH Study Regulations, students must submit their course selection within two weeks of the semester start."
+        If the answer have paragraph number (e.g. "§3(2)"), you should include in anserw this document name "AGH Study Regulations".
+        If the answer starts with FACT AND FIGURES or ACADEMIC YEAR SCHEDULE then add those name instead of paragraph number.
         If you don't know the answer, just say that you don't know, don't try to make up an answer.
+        Answer in full sentences.
 
         Context: {context}
 
