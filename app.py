@@ -30,6 +30,7 @@ class CustomHandler(BaseCallbackHandler):
         st.session_state.tokens_used = tokenizer.count_tokens(
             formatted_prompts
         ).total_tokens
+        st.session_state.add_info_prompt = prompts[0]
 
     def on_chain_start(self, serialized, inputs, **kwargs):
         st.session_state.retrieved = inputs["context"]
@@ -64,7 +65,7 @@ def get_conversation_chain(vector_store):
         callbacks=[handler],
     )
     system_template = """
-        Use the following pieces of context and chat history to answer the question at the end.
+        Use the following pieces of context and chat history to answer in English the question at the end.
         In the answer tell exact paragraph number from the context where the answer is found e.g. "According to §3(2) of the AGH Study Regulations, students must submit their course selection within two weeks of the semester start."
         If you don't know the answer, just say that you don't know, don't try to make up an answer.
 
@@ -117,6 +118,8 @@ def main():
 
     if "conversation" not in st.session_state:
         st.session_state.conversation = None
+    if "add_info_prompt" not in st.session_state:
+        st.session_state.add_info_prompt = None
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = None
     if "tokens_used" not in st.session_state:  # Initialize tokens_used in session state
@@ -154,10 +157,18 @@ def main():
                 st.markdown(last_ai_response)
 
     with st.sidebar:
-        st.subheader("Additional Informations")
-        st.markdown(f"Token Count: {st.session_state.tokens_used}\n")
-        st.markdown(f"Prompt Sent to LLM: {prompt}\n")
-        st.markdown(f"Retrieval:\n {st.session_state.retrieved}")
+        st.header("Additional Information")
+
+        with st.expander("💸 Token Count"):
+            st.code(st.session_state.tokens_used, language="markdown")
+
+        with st.expander("💬 Prompt Sent to LLM"):
+            st.code(st.session_state.add_info_prompt, language="markdown")
+
+        with st.expander("📄 Retrieved Documents"):
+            st.markdown("Chunks retrieved by the vector search:")
+            st.code(st.session_state.retrieved, language="markdown")
+
 
 
 if __name__ == "__main__":
