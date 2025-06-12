@@ -5,7 +5,9 @@ load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL_NAME = "gemini-1.5-flash-8b"
 EMBEDDING_MODEL = "models/embedding-001"
-MIN_EVALUATION_SCORE = 0.5
+MIN_KEYWORDS_SCORE = 0.15
+MIN_UNCERTAINTY_SCORE = 0.8
+MIN_CONTEXT_OVERLAP = 0.5
 
 import streamlit as st
 import pandas as pd
@@ -41,7 +43,10 @@ class CustomHandler(BaseCallbackHandler):
 
 
 handler = CustomHandler()
-evaluator = ResponseEvaluator()
+evaluator = ResponseEvaluator(
+    min_length=20,
+    max_length=50,
+)
 
 
 def get_vector_store(text_chunks):
@@ -159,20 +164,40 @@ def main():
             with st.chat_message("assistant"):
                 st.markdown(last_ai_response)
 
-        eval_res = evaluator.evaluate(prompt, last_ai_response)
+        if isinstance(st.session_state.retrieved, list):
+            context_text = " ".join(st.session_state.retrieved)
+        else:
+            context_text = str(st.session_state.retrieved)
+
+        eval_res = evaluator.evaluate(prompt, last_ai_response, context_text)
 
         warning_msgs = []
         if not eval_res['basic_criteria']:
             warning_msgs.append(eval_res['message'])
         else:
-            score = eval_res['final_score']
             keyword_score = eval_res['keyword_score']
             length_score = eval_res['length_score']
             uncertainty_score = eval_res['uncertainty_score']
 
-            if score < MIN_EVALUATION_SCORE:
+            if keyword_score < MIN_KEYWORDS_SCORE:
                 warning_msgs.append(
-                    f"Evaluation score is low: {score}\n keywords number score: {keyword_score}\n, response length score: {length_score}\n, uncertainty score: {uncertainty_score}"
+                    f"Low keyword match score: {keyword_score}. "
+                )
+            if length_score == -1:
+                warning_msgs.append(
+                    f"Answer is too short."
+                )
+            if length_score == 1:
+                warning_msgs.append(
+                    f"Answer is too long."
+                )
+            if uncertainty_score < MIN_UNCERTAINTY_SCORE:
+                warning_msgs.append(
+                    f"High uncertainty in the answer: {uncertainty_score}. "
+                )
+            if eval_res['context_overlap_score'] < MIN_CONTEXT_OVERLAP:
+                warning_msgs.append(
+                    f"Low context overlap score: {eval_res['context_overlap_score']}. "
                 )
         for wm in warning_msgs:
             st.warning(wm)
